@@ -1,11 +1,18 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import React, {
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+  useCallback,
+} from "react";
 
 const AuthContext = createContext();
 
 export const useAuth = () => {
   const context = useContext(AuthContext);
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
+    throw new Error("useAuth must be used within an AuthProvider");
   }
   return context;
 };
@@ -14,16 +21,61 @@ export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // API base URL - adjust based on environment
-  const API_BASE = process.env.NODE_ENV === 'production' 
-    ? '' // Same domain in production
-    : 'http://localhost:5000'; // Backend port in development
+  // API base URL - prefer Vite env var if provided
+  const API_BASE =
+    typeof import.meta !== "undefined" &&
+    import.meta.env &&
+    import.meta.env.VITE_API_URL
+      ? import.meta.env.VITE_API_URL
+      : import.meta.env && import.meta.env.PROD
+      ? ""
+      : "http://localhost:5000";
+
+  const logout = useCallback(async () => {
+    try {
+      const token = localStorage.getItem("authToken");
+      if (token) {
+        await fetch(`${API_BASE}/api/auth/logout`, {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+      }
+    } catch (error) {
+      console.error("Logout error:", error);
+    } finally {
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("userData");
+      setUser(null);
+    }
+  }, [API_BASE]);
+
+  const verifyToken = useCallback(
+    async (token) => {
+      try {
+        const response = await fetch(`${API_BASE}/api/auth/profile`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        });
+
+        if (!response.ok) {
+          logout();
+        }
+      } catch (error) {
+        console.error("Token verification error:", error);
+        logout();
+      }
+    },
+    [API_BASE, logout]
+  );
 
   useEffect(() => {
     // Check for existing auth token on mount
-    const token = localStorage.getItem('authToken');
-    const userData = localStorage.getItem('userData');
-    
+    const token = localStorage.getItem("authToken");
+    const userData = localStorage.getItem("userData");
+
     if (token && userData) {
       try {
         const parsedUser = JSON.parse(userData);
@@ -31,37 +83,20 @@ export const AuthProvider = ({ children }) => {
         // Verify token is still valid
         verifyToken(token);
       } catch (error) {
-        console.error('Error parsing user data:', error);
+        console.error("Error parsing user data:", error);
         logout();
       }
     }
-    
+
     setLoading(false);
-  }, []);
-
-  const verifyToken = async (token) => {
-    try {
-      const response = await fetch(`${API_BASE}/api/auth/profile`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        logout();
-      }
-    } catch (error) {
-      console.error('Token verification error:', error);
-      logout();
-    }
-  };
+  }, [verifyToken, logout]);
 
   const login = async (email, password) => {
     try {
       const response = await fetch(`${API_BASE}/api/auth/login`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({ email, password }),
       });
@@ -70,28 +105,28 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok && data.success) {
         const { user: userData, token } = data.data;
-        
+
         // Store auth data
-        localStorage.setItem('authToken', token);
-        localStorage.setItem('userData', JSON.stringify(userData));
-        
+        localStorage.setItem("authToken", token);
+        localStorage.setItem("userData", JSON.stringify(userData));
+
         setUser(userData);
         return { success: true, user: userData };
       } else {
-        return { success: false, message: data.message || 'Login failed' };
+        return { success: false, message: data.message || "Login failed" };
       }
     } catch (error) {
-      console.error('Login error:', error);
-      return { success: false, message: 'Network error. Please try again.' };
+      console.error("Login error:", error);
+      return { success: false, message: "Network error. Please try again." };
     }
   };
 
   const register = async (userData) => {
     try {
       const response = await fetch(`${API_BASE}/api/auth/register`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(userData),
       });
@@ -100,44 +135,47 @@ export const AuthProvider = ({ children }) => {
 
       if (response.ok && data.success) {
         const { user: newUser, token } = data.data;
-        
+
         // Store auth data
-        localStorage.setItem('authToken', token);
-        localStorage.setItem('userData', JSON.stringify(newUser));
-        
+        localStorage.setItem("authToken", token);
+        localStorage.setItem("userData", JSON.stringify(newUser));
+
         setUser(newUser);
         return { success: true, user: newUser };
       } else {
-        return { success: false, message: data.message || 'Registration failed' };
+        return {
+          success: false,
+          message: data.message || "Registration failed",
+        };
       }
     } catch (error) {
-      console.error('Registration error:', error);
-      return { success: false, message: 'Network error. Please try again.' };
+      console.error("Registration error:", error);
+      return { success: false, message: "Network error. Please try again." };
     }
   };
 
   const logout = async () => {
     try {
-      const token = localStorage.getItem('authToken');
+      const token = localStorage.getItem("authToken");
       if (token) {
         await fetch(`${API_BASE}/api/auth/logout`, {
-          method: 'POST',
+          method: "POST",
           headers: {
-            'Authorization': `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
         });
       }
     } catch (error) {
-      console.error('Logout error:', error);
+      console.error("Logout error:", error);
     } finally {
-      localStorage.removeItem('authToken');
-      localStorage.removeItem('userData');
+      localStorage.removeItem("authToken");
+      localStorage.removeItem("userData");
       setUser(null);
     }
   };
 
   const isAdmin = () => {
-    return user && user.role === 'admin';
+    return user && user.role === "admin";
   };
 
   const isAuthenticated = () => {
@@ -145,15 +183,15 @@ export const AuthProvider = ({ children }) => {
   };
 
   const getAuthHeaders = () => {
-    const token = localStorage.getItem('authToken');
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
+    const token = localStorage.getItem("authToken");
+    return token ? { Authorization: `Bearer ${token}` } : {};
   };
 
   const apiCall = async (endpoint, options = {}) => {
     const url = `${API_BASE}${endpoint}`;
     const config = {
       headers: {
-        'Content-Type': 'application/json',
+        "Content-Type": "application/json",
         ...getAuthHeaders(),
         ...options.headers,
       },
@@ -166,12 +204,12 @@ export const AuthProvider = ({ children }) => {
 
       if (response.status === 401) {
         logout();
-        throw new Error('Authentication required');
+        throw new Error("Authentication required");
       }
 
       return { response, data };
     } catch (error) {
-      console.error('API call error:', error);
+      console.error("API call error:", error);
       throw error;
     }
   };
@@ -189,12 +227,7 @@ export const AuthProvider = ({ children }) => {
     API_BASE,
   };
 
-  return (
-    <AuthContext.Provider value={value}>
-      {children}
-    </AuthContext.Provider>
-  );
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
 
 export default AuthContext;
-
